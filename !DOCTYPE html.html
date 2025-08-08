@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Đặt hàng Botcake API</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 10px; }
+    h2, h3 { margin-top: 20px; }
+    #products > div, #cart > div {
+      border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 5px;
+    }
+    #products img, #product-detail img {
+      max-width: 150px; border-radius: 5px;
+    }
+    button {
+      background-color: #007bff; color: white; border: none; padding: 6px 12px; border-radius: 3px;
+      cursor: pointer;
+    }
+    button:hover { background-color: #0056b3; }
+    input[type="number"] { width: 50px; }
+    .topping-list label {
+      display: inline-block; margin-right: 10px;
+    }
+    #product-detail { display: none; border: 1px solid #ddd; padding: 10px; border-radius: 5px; }
+    .form-group { margin-bottom: 10px; }
+    label { display: block; margin-bottom: 4px; }
+    input[type="text"], input[type="tel"] {
+      width: 100%; padding: 6px; box-sizing: border-box;
+    }
+    #result { margin-top: 15px; font-weight: bold; }
+    .cart-item {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px;
+    }
+    .cart-item-info small {
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Danh sách sản phẩm</h2>
+  <div id="products"></div>
+
+  <div id="product-detail">
+    <button id="back-to-list">← Quay lại</button>
+    <h3 id="detail-name"></h3>
+    <img id="detail-image" alt="" />
+    <p id="detail-desc"></p>
+
+    <div class="form-group">
+      <label>Size:</label>
+      <select id="detail-size"></select>
+    </div>
+
+    <div class="form-group">
+      <label>Loại đá:</label>
+      <select id="detail-ice">
+        <option value="Đá thường">Đá thường</option>
+        <option value="Đá ít">Đá ít</option>
+        <option value="Không đá">Không đá</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Loại đường:</label>
+      <select id="detail-sugar">
+        <option value="Đường thường">Đường thường</option>
+        <option value="Đường ít">Đường ít</option>
+        <option value="Không đường">Không đường</option>
+      </select>
+    </div>
+
+    <div class="form-group" id="toppings-container"></div>
+
+    <div class="form-group">
+      <label>Ghi chú:</label>
+      <input type="text" id="detail-note" placeholder="Ví dụ: ít ngọt, nhiều đá..." />
+    </div>
+
+    <div class="form-group">
+      <label>Số lượng:</label>
+      <input type="number" id="detail-qty" min="1" value="1" />
+    </div>
+
+    <button id="add-to-cart-btn">Thêm vào giỏ hàng</button>
+  </div>
+
+  <h3>Giỏ hàng</h3>
+  <div id="cart"></div>
+  <div id="cart-total" style="font-weight: bold; margin-top: 10px;">Tổng tiền: 0 đ</div>
+
+  <form id="orderForm">
+    <h3>Thông tin khách hàng</h3>
+    <div class="form-group">
+      <label>Tên:</label>
+      <input type="text" id="name" required />
+    </div>
+    <div class="form-group">
+      <label>SĐT:</label>
+      <input type="tel" id="phone" required />
+    </div>
+    <div class="form-group">
+      <label>Địa chỉ:</label>
+      <input type="text" id="address" required />
+    </div>
+    <button type="submit">Gửi đơn hàng</button>
+  </form>
+
+  <div id="result"></div>
+
+<script>
+  const API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEwMzUwNDk5NTgyMTY3NiIsInRpbWVzdGFtcCI6MTc1NDY1OTA1NH0.Ll2X6y59A_r9CMw15IDzGvgBFvhE-GKgY4PCMM5WGik";
+  const SHOP_ID = "103504995821676";
+
+  let products = [];
+  let cart = [];
+
+  // Load products from Botcake API
+  async function loadProducts() {
+    try {
+      const res = await fetch(`https://api.pancake.vn/shops/${SHOP_ID}/products?api_key=${API_KEY}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Lỗi tải sản phẩm");
+      products = data.data || [];
+      renderProductList();
+    } catch (e) {
+      alert("Không tải được sản phẩm: " + e.message);
+    }
+  }
+
+  function renderProductList() {
+    const container = document.getElementById('products');
+    container.innerHTML = "";
+    products.forEach(p => {
+      const div = document.createElement('div');
+      div.innerHTML = `
+        <img src="${p.image || ''}" alt="${p.name}" />
+        <h4>${p.name}</h4>
+        <p>Giá: ${p.price.toLocaleString()} đ</p>
+        <button data-id="${p.id}">Xem chi tiết</button>
+      `;
+      div.style.cursor = "pointer";
+      div.querySelector('button').addEventListener('click', () => showProductDetail(p));
+      container.appendChild(div);
+    });
+  }
+
+  // Show product detail screen
+  function showProductDetail(product) {
+    document.getElementById('products').style.display = 'none';
+    const detail = document.getElementById('product-detail');
+    detail.style.display = 'block';
+
+    document.getElementById('detail-name').textContent = product.name;
+    document.getElementById('detail-image').src = product.image || '';
+    document.getElementById('detail-desc').textContent = product.description || "";
+
+    // Size options
+    const sizeSelect = document.getElementById('detail-size');
+    sizeSelect.innerHTML = "";
+    if(product.sizes && product.sizes.length > 0){
+      product.sizes.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.name;
+        opt.textContent = `${s.name} (+${s.price.toLocaleString()} đ)`;
+        sizeSelect.appendChild(opt);
+      });
+    } else {
+      // Nếu không có size thì mặc định 1 option
+      const opt = document.createElement('option');
+      opt.value = "";
+      opt.textContent = "Mặc định";
+      sizeSelect.appendChild(opt);
+    }
+
+    // Toppings
+    const toppingsContainer = document.getElementById('toppings-container');
+    toppingsContainer.innerHTML = "<b>Topping thêm (+ tiền):</b><br>";
+    if (product.toppings && product.toppings.length > 0) {
+      product.toppings.forEach(t => {
+        const label = document.createElement('label');
+        label.style.marginRight = "10px";
+        label.innerHTML = `<input type="checkbox" data-id="${t.id}" data-name="${t.name}" data-price="${t.price}" /> ${t.name} (+${t.price.toLocaleString()} đ)`;
+        toppingsContainer.appendChild(label);
+      });
+    } else {
+      toppingsContainer.innerHTML += "Không có topping";
+    }
+
+    // Reset input fields
+    document.getElementById('detail-note').value = "";
+    document.getElementById('detail-qty').value = 1;
+
+    // Lưu sản phẩm hiện tại để add vào giỏ
+    detail.currentProduct = product;
+  }
+
+  function hideProductDetail() {
+    document.getElementById('product-detail').style.display = 'none';
+    document.getElementById('products').style.display = 'block';
+  }
+
+  document.getElementById('back-to-list').addEventListener('click', () => {
+    hideProductDetail();
+  });
+
+  // Thêm sản phẩm vào giỏ
+  document.getElementById('add-to-cart-btn').addEventListener('click', () => {
+    const product = document.getElementById('product-detail').currentProduct;
+    if (!product) return;
+
+    const size = document.getElementById('detail-size').value;
+    const ice = document.getElementById('detail-ice').value;
+    const sugar = document.getElementById('detail-sugar').value;
+    const note = document.getElementById('detail-note').value.trim();
+    const qty = parseInt(document.getElementById('detail-qty').value);
+    if (qty < 1) {
+      alert("Số lượng phải lớn hơn hoặc bằng 1");
+      return;
+    }
+
+    // Lấy topping được chọn
+    const toppings = [];
+    document.querySelectorAll('#toppings-container input[type=checkbox]').forEach(cb => {
+      if(cb.checked){
+        toppings.push({
+          id: cb.dataset.id,
+          name: cb.dataset.name,
+          price: Number(cb.dataset.price)
+        });
+      }
+    });
+
+    // Kiểm tra xem món này cùng tùy chọn đã có trong giỏ chưa
+    const existIdx = cart.findIndex(item => 
+      item.product.id === product.id &&
+      item.size === size &&
+      item.ice === ice &&
+      item.sugar === sugar &&
+      JSON.stringify(item.toppings.map(t => t.id).sort()) === JSON.stringify(toppings.map(t => t.id).sort()) &&
+      item.note === note
+    );
+
+    if(existIdx >= 0){
+      // Nếu có thì cộng số lượng
+      cart[existIdx].quantity += qty;
+    } else {
+      cart.push({
+        product,
+        size,
+        ice,
+        sugar,
+        toppings,
+        note,
+        quantity: qty
+      });
+    }
+
+    alert("Đã thêm vào giỏ hàng");
+    hideProductDetail();
+    renderCart();
+  });
+
+  // Hiển thị giỏ hàng
+  function renderCart() {
+    const container = document.getElementById('cart');
+    container.innerHTML = "";
+    if(cart.length === 0){
+      container.textContent = "Giỏ hàng trống";
+      document.getElementById('cart-total').textContent = "Tổng tiền: 0 đ";
+      return;
+    }
+
+    cart.forEach((item, idx) => {
+      const toppingsStr = item.toppings.length > 0 ? item.toppings.map(t => t.name).join(", ") : "Không có topping";
+      const sizePrice = item.size ? (item.product.sizes?.find(s => s.name === item.size)?.price || 0) : 0;
+      const basePrice = item.product.price + sizePrice;
+      const toppingsPrice = item.toppings.reduce((sum, t) => sum + t.price, 0);
+      const itemPrice = (basePrice + toppingsPrice) * item.quantity;
+
+      const div = document.createElement("div");
+      div.className = "cart-item";
+      div.innerHTML = `
+        <div class="cart-item-info">
+          <b>${item.product.name}</b> (${item.size || "Mặc định"})<br/>
+          Đá: ${item.ice || "Đá thường"}, Đường: ${item.sugar || "Đường thường"}<br/>
+          Topping: ${toppingsStr}<br/>
+          Ghi chú: <small>${item.note || "-"}</small><br/>
+          Số lượng:
+        </div>
+        <div class="cart-item-actions">
+          <input type="number" min="1" value="${item.quantity}" data-idx="${idx}" class="qty-input"/>
+          <button data-idx="${idx}" class="remove-btn">Xóa</button>
+          <div style="font-weight:bold; margin-left: 10px;">${itemPrice.toLocaleString()} đ</div>
+        </div>
+      `;
+      container.appendChild(div);
+    });
+
+    // Tổng tiền
+    const total = cart.reduce((sum, item) => {
+      const sizePrice = item.size ? (item.product.sizes?.find(s => s.name === item.size)?.price || 0) : 0;
+      const basePrice = item.product.price + sizePrice;
+      const toppingsPrice = item.toppings.reduce((sum, t) => sum + t.price, 0);
+      return sum + (basePrice + toppingsPrice) * item.quantity;
+    }, 0);
+    document.getElementById('cart-total').textContent = "Tổng tiền: " + total.toLocaleString() + " đ";
+
+    // Sự kiện chỉnh số lượng
+    document.querySelectorAll(".qty-input").forEach(input => {
+      input.addEventListener("change", e => {
+        const idx = Number(e.target.dataset.idx);
+        let val = Number(e.target.value);
+        if (val < 1) val = 1;
+        cart[idx].quantity = val;
+        renderCart();
+      });
+    });
+
+    // Sự kiện xóa
+    document.querySelectorAll(".remove-btn").forEach(btn => {
+      btn.addEventListener("click", e => {
+        const idx = Number(e.target.dataset.idx);
+        cart.splice(idx, 1);
+        renderCart();
+      });
+    });
+  }
+
+  // Gửi đơn hàng
+  document.getElementById('orderForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (cart.length === 0) {
+      alert("Giỏ hàng đang trống!");
+      return;
+    }
+
+    const name = document.getElementById('name').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const address = document.getElementById('address').value.trim();
+
+    if (!name || !phone || !address) {
+      alert("Vui lòng điền đầy đủ thông tin khách hàng");
+      return;
+    }
+
+    const items = cart.map(item => {
+      const sizePrice = item.size ? (item.product.sizes?.find(s => s.name === item.size)?.price || 0) : 0;
+      const basePrice = item.product.price + sizePrice;
+      const toppingsPrice = item.toppings.reduce((sum, t) => sum + t.price, 0);
+      return {
+        product_id: item.product.id,
+        quantity: item.quantity,
+        price: basePrice + toppingsPrice,
+        size: item.size || "",
+        ice: item.ice || "",
+        sugar: item.sugar || "",
+        toppings: item.toppings.map(t => t.id),
+        note: item.note || ""
+      };
+    });
+
+    const data = {
+      api_key: API_KEY,
+      shop_id: SHOP_ID,
+      customer_name: name,
+      customer_phone: phone,
+      customer_address: address,
+      items
+    };
+
+    try {
+      const res = await fetch('https://api.pancake.vn/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const json = await res.json();
+
+      if (!res.ok) throw new Error(json.message || 'Lỗi khi gửi đơn hàng');
+
+      document.getElementById('result').style.color = 'green';
+      document.getElementById('result').textContent = "✅ Đặt hàng thành công! Đơn hàng của bạn đã được gửi qua Messenger.";
+
+      // Reset form và giỏ hàng
+      cart = [];
+      renderCart();
+      e.target.reset();
+
+    } catch (error) {
+      document.getElementById('result').style.color = 'red';
+      document.getElementById('result').textContent = "❌ Có lỗi xảy ra: " + error.message;
+    }
+  });
+
+  loadProducts();
+</script>
+
+</body>
+</html>
